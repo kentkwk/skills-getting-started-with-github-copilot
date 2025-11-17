@@ -4,14 +4,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  function getInitials(nameOrEmail) {
+    // Prefer name parts; fallback to email local-part
+    const name = (nameOrEmail || "").trim();
+    let base = name;
+    if (name.includes("@")) base = name.split("@")[0];
+    const parts = base.split(/[.\s_-]+/).filter(Boolean);
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
+      // Clear loading message / list
       activitiesList.innerHTML = "";
+
+      // Reset activity select (keep the default placeholder)
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -20,11 +34,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Build participants section
+        let participantsHtml = '<div class="participants"><h5>Participants</h5>';
+        if (details.participants && details.participants.length > 0) {
+          participantsHtml += "<ul>";
+          details.participants.forEach((p) => {
+            const initials = getInitials(p);
+            participantsHtml += `<li><span class="participant-avatar">${initials}</span><span class="participant-name">${p}</span></li>`;
+          });
+          participantsHtml += "</ul>";
+        } else {
+          participantsHtml += '<div class="empty">No participants yet</div>';
+        }
+        participantsHtml += "</div>";
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsHtml}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -62,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+
+        // Refresh activities to show the newly signed-up participant
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
